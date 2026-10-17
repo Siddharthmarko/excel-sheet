@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Sheets Reader</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1100px;
+      margin: 36px auto;
+      padding: 0 16px;
+      color: #222;
+    }
+    h1 { font-size: 25px; margin-bottom: 8px; }
+    #status { color: #555; margin: 16px 0; }
+    #table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 9px 11px;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    th { background: #f1f3f4; }
+    tr:nth-child(even) { background: #fafafa; }
+    .error { color: #b00020 !important; }
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 9px 13px;
+      cursor: pointer;
+      background: #1a73e8;
+      color: white;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Google Sheets Reader</h1>
+  <button id="reload" type="button">Reload data</button>
+  <p id="status">Loading spreadsheet data...</p>
+  <div id="table-container"></div>
+
+  <script>
+    // Your deployed Google Apps Script web app URL
+    const API_URL = "https://script.google.com/macros/s/AKfycbzJtiJRtyy820tC55QR0IRr3bsiJQxFdyMtfq1mZGywzB6uTC0LqsrOBuZbd8wEsa9ixg/exec";
+
+    function handleData(data) {
+      const status = document.getElementById("status");
+      const container = document.getElementById("table-container");
+      container.replaceChildren();
+
+      if (!data || data.success !== true) {
+        status.className = "error";
+        status.textContent = "API error: " + ((data && data.error) || "Unexpected response.");
+        return;
+      }
+
+      status.className = "";
+      status.textContent = (data.spreadsheet || "Spreadsheet") +
+        " / " + (data.sheet || "Sheet") +
+        " — " + (Array.isArray(data.rows) ? data.rows.length : 0) + " rows";
+
+      if (!Array.isArray(data.rows) || data.rows.length === 0) {
+        container.textContent = "The sheet is empty.";
+        return;
+      }
+
+      const table = document.createElement("table");
+      const tbody = document.createElement("tbody");
+
+      data.rows.forEach((row, rowIndex) => {
+        const tr = document.createElement("tr");
+        (Array.isArray(row) ? row : [row]).forEach(value => {
+          const cell = document.createElement(rowIndex === 0 ? "th" : "td");
+          cell.textContent = value == null ? "" : String(value);
+          tr.appendChild(cell);
+        });
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      container.appendChild(table);
+    }
+
+    function loadData() {
+      const status = document.getElementById("status");
+      const container = document.getElementById("table-container");
+      status.className = "";
+      status.textContent = "Loading spreadsheet data...";
+      container.replaceChildren();
+
+      // Remove a previous request script, if any.
+      const previous = document.getElementById("api-request");
+      if (previous) previous.remove();
+
+      // JSONP avoids browser CORS restrictions for this public Apps Script endpoint.
+      const script = document.createElement("script");
+      script.id = "api-request";
+      script.src = API_URL + "?callback=handleData&t=" + Date.now();
+      script.onerror = () => {
+        status.className = "error";
+        status.textContent =
+          "Could not load data. Check that the Apps Script deployment is accessible to anyone and returns JSONP when a callback parameter is supplied.";
+      };
+      document.body.appendChild(script);
+    }
+
+    document.getElementById("reload").addEventListener("click", loadData);
+    loadData();
+  </script>
+</body>
+</html>
